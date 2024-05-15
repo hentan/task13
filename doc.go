@@ -1,4 +1,4 @@
-package main
+package task13
 
 import (
 	"bufio"
