@@ -3,51 +3,58 @@ package task13
 import (
 	"bufio"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"os"
-	"sort"
 )
 
 type Patient struct {
-	Name  string `json:"name"`
-	Age   int    `json:"age"`
-	Email string `json:"email"`
+	XMLName xml.Name `xml:"Patient"`
+	Name    string   `xml:"Name" json:"name"`
+	Age     int      `xml:"Age" json:"age"`
+	Email   string   `xml:"Email" json:"email"`
 }
 
-type ByAge []Patient
-
-func (a ByAge) Len() int           { return len(a) }
-func (a ByAge) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByAge) Less(i, j int) bool { return a[i].Age < a[j].Age }
+type Patients struct {
+	XMLName xml.Name  `xml:"Patients"`
+	List    []Patient `xml:"Patient"`
+}
 
 func Do(inputPath, outputPath string) error {
-	data, err := os.Open(inputPath)
+	file, err := os.Open(inputPath)
 	if err != nil {
-		fmt.Println("ошибка чтения файла")
-		return err
+		return fmt.Errorf("ошибка чтения файла: %v", err)
 	}
+	defer file.Close()
 
-	var patients []Patient
-	var patient Patient
-	scan := bufio.NewScanner(data)
+	var patients Patients
+	scan := bufio.NewScanner(file)
 
 	for scan.Scan() {
+		var patient Patient
 		err := json.Unmarshal(scan.Bytes(), &patient)
 		if err != nil {
-			fmt.Println("Parsing error", err)
+			return fmt.Errorf("parsing error: %v", err)
 		}
-		fmt.Println(patient)
-		patients = append(patients, patient)
+		patients.List = append(patients.List, patient)
 	}
-	fmt.Println(patients)
 
-	sort.Sort(ByAge(patients))
+	if err := scan.Err(); err != nil {
+		return fmt.Errorf("ошибка сканера: %v", err)
+	}
 
-	jsonData, err := json.MarshalIndent(patients, "", "  ")
+	res, err := xml.MarshalIndent(patients, "", "    ")
 	if err != nil {
-		return err
+		return fmt.Errorf("ошибка создания xml: %v", err)
 	}
 
-	err = os.WriteFile(outputPath, jsonData, 0644)
-	return err
+	xmlHeader := []byte(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
+	res = append(xmlHeader, res...)
+
+	err = os.WriteFile(outputPath, res, 0644)
+	if err != nil {
+		return fmt.Errorf("ошибка записи файла: %v", err)
+	}
+
+	return nil
 }
